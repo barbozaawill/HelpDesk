@@ -1,0 +1,98 @@
+@page "/dashboard"
+@attribute [Authorize(Roles = "Atendente,Admin")]
+@implements IDisposable
+@inject ClienteApi Api
+
+<PageTitle>Dashboard - HelpDesk</PageTitle>
+
+<h1 class="h3 my-3">Dashboard</h1>
+
+@if (metricas is null)
+{
+    <p>@(erro ?? "Carregando...")</p>
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-6 col-md-3">
+            <div class="card text-bg-primary"><div class="card-body">
+                <div class="display-6">@metricas.Abertos</div><div>Abertos</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-bg-info"><div class="card-body">
+                <div class="display-6">@metricas.EmAtendimento</div><div>Em atendimento</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-bg-warning"><div class="card-body">
+                <div class="display-6">@metricas.AguardandoCliente</div><div>Aguardando cliente</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card @(metricas.SlaEstourado > 0 ? "text-bg-danger" : "text-bg-secondary")"><div class="card-body">
+                <div class="display-6">@metricas.SlaEstourado</div><div>SLA estourado</div>
+            </div></div>
+        </div>
+
+        <div class="col-6 col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="display-6">@metricas.ResolvidosNoDia</div><div>Resolvidos hoje</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="display-6">@metricas.FechadosNoDia</div><div>Fechados hoje</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="display-6">@metricas.TotalAtivos</div><div>Total ativos</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="display-6">@metricas.HorasMediasResolucao.ToString("0.0")h</div><div>Tempo medio (30d)</div>
+            </div></div>
+        </div>
+    </div>
+
+    <p class="text-muted small mt-3">
+        Fonte: <strong>@metricas.Origem</strong>
+        @if (metricas.AtualizadoEm is not null)
+        {
+            <text> - atualizado @metricas.AtualizadoEm.Value.ToLocalTime().ToString("HH:mm:ss")</text>
+        }
+        <br />
+        (a pagina recarrega os numeros a cada 10s; quem os calcula e o Worker via eventos + reconciliacao)
+    </p>
+}
+
+@code {
+    private Metricas? metricas;
+    private string? erro;
+    private Timer? timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarAsync();
+        timer = new Timer(async _ => await InvokeAsync(CarregarAsync), null,
+            TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+    }
+
+    private async Task CarregarAsync()
+    {
+        try
+        {
+            metricas = await Api.ObterMetricasAsync();
+            erro = null;
+        }
+        catch (ApiException ex)
+        {
+            erro = ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    public void Dispose() => timer?.Dispose();
+}

@@ -1,0 +1,70 @@
+### Requests de exemplo da HelpDesk API.
+### Abra no VS Code (extensao "REST Client") ou no Rider e clique em "Send Request".
+
+@host = http://localhost:5000
+
+### 1. Login (copie o "token" da resposta pra variavel abaixo)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "ana@helpdesk.local",
+  "senha": "Atende@123"
+}
+
+### Cole o token aqui:
+@token = COLE_O_TOKEN_AQUI
+
+### 2. Quem sou eu
+GET {{host}}/api/auth/eu
+Authorization: Bearer {{token}}
+
+### 3. Categorias
+GET {{host}}/api/categorias
+Authorization: Bearer {{token}}
+
+### 4. Abrir um chamado
+POST {{host}}/api/chamados
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "titulo": "Impressora do 3o andar nao imprime",
+  "descricao": "Aparece 'sem comunicacao' no painel da impressora.",
+  "categoriaId": 1,
+  "prioridade": "Alta"
+}
+
+### 5. Listar chamados (usa cache-aside)
+GET {{host}}/api/chamados
+Authorization: Bearer {{token}}
+
+### 6. Listar so os abertos
+GET {{host}}/api/chamados?status=Aberto
+Authorization: Bearer {{token}}
+
+### 7. Detalhe do chamado 1
+GET {{host}}/api/chamados/1
+Authorization: Bearer {{token}}
+
+### 8. Atendente assume o chamado 1
+PUT {{host}}/api/chamados/1/assumir
+Authorization: Bearer {{token}}
+
+### 9. Responder o chamado 1
+PUT {{host}}/api/chamados/1/responder
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "mensagem": "Ja estou verificando, retorno em instantes.",
+  "interna": false
+}
+
+### 10. Resolver o chamado 1
+PUT {{host}}/api/chamados/1/resolver
+Authorization: Bearer {{token}}
+
+### 11. Métricas do dashboard (lê do Redis)
+GET {{host}}/api/dashboard/metricas
+Authorization: Bearer {{token}}

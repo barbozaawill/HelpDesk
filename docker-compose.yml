@@ -1,0 +1,105 @@
+# Sobe o sistema inteiro com um comando:
+#   docker compose up --build
+#
+# Portas no host:
+#   Blazor .......... http://localhost:5001
+#   API + Swagger ... http://localhost:5000/swagger
+#   Worker /health .. http://localhost:5100/health
+#   RabbitMQ painel . http://localhost:15672  (helpdesk / helpdesk)
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: helpdesk
+      POSTGRES_PASSWORD: helpdesk
+      POSTGRES_DB: helpdesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U helpdesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: helpdesk
+      RABBITMQ_DEFAULT_PASS: helpdesk
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # painel web de administracao
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: src/HelpDesk.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=helpdesk;Username=helpdesk;Password=helpdesk"
+      Redis__ConnectionString: "redis:6379"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Usuario: "helpdesk"
+      RabbitMq__Senha: "helpdesk"
+      Jwt__ChaveSecreta: "chave-do-docker-compose-troque-isso-em-producao-please"
+      Cors__Origens__0: "http://localhost:5001"
+    ports:
+      - "5000:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/HelpDesk.Worker/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=helpdesk;Username=helpdesk;Password=helpdesk"
+      Redis__ConnectionString: "redis:6379"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Usuario: "helpdesk"
+      RabbitMq__Senha: "helpdesk"
+    ports:
+      - "5100:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: src/HelpDesk.Web/Dockerfile
+    ports:
+      - "5001:8080"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

@@ -1,0 +1,30 @@
+# Build
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+publish/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+.idea/
+
+# .NET
+project.lock.json
+*.nupkg
+TestResults/
+coverage*.json
+*.trx
+
+# Ambiente
+.env
+appsettings.*.local.json
+
+# SO
+.DS_Store
+Thumbs.db

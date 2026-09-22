@@ -1,0 +1,117 @@
+@page "/chamados"
+@attribute [Authorize]
+@inject ClienteApi Api
+@inject NavigationManager Nav
+
+<PageTitle>Chamados - HelpDesk</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center my-3">
+    <h1 class="h3 mb-0">Chamados</h1>
+    <a href="chamados/novo" class="btn btn-primary btn-sm">+ Novo chamado</a>
+</div>
+
+<div class="mb-3">
+    <div class="btn-group btn-group-sm" role="group">
+        <button class="btn @(filtro is null ? "btn-secondary" : "btn-outline-secondary")"
+                @onclick='() => Filtrar(null)'>Todos</button>
+        @foreach (var s in StatusFiltraveis)
+        {
+            <button class="btn @(filtro == s ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick="() => Filtrar(s)">@Estilos.TextoStatus(s)</button>
+        }
+    </div>
+</div>
+
+@if (carregando)
+{
+    <p>Carregando...</p>
+}
+else if (erro is not null)
+{
+    <div class="alert alert-danger">@erro</div>
+}
+else if (chamados.Count == 0)
+{
+    <div class="alert alert-info">Nenhum chamado por aqui.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Titulo</th>
+                    <th>Status</th>
+                    <th>Prioridade</th>
+                    <th>Categoria</th>
+                    <th>Atendente</th>
+                    <th>Aberto em</th>
+                    <th>SLA</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in chamados)
+                {
+                    <tr style="cursor:pointer" @onclick="() => Abrir(c.Id)">
+                        <td>@c.Id</td>
+                        <td>@c.Titulo</td>
+                        <td><span class="badge @Estilos.BadgeStatus(c.Status)">@Estilos.TextoStatus(c.Status)</span></td>
+                        <td><span class="badge @Estilos.BadgePrioridade(c.Prioridade)">@c.Prioridade</span></td>
+                        <td>@c.Categoria</td>
+                        <td>@(c.Atendente ?? "-")</td>
+                        <td>@c.CriadoEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>
+                            @if (c.SlaEstourado)
+                            {
+                                <span class="badge bg-danger">Estourado</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">@c.PrazoResolucao.ToLocalTime().ToString("dd/MM HH:mm")</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private static readonly string[] StatusFiltraveis =
+        { "Aberto", "EmAtendimento", "AguardandoCliente", "Resolvido", "Fechado" };
+
+    private List<ChamadoResumo> chamados = new();
+    private string? filtro;
+    private bool carregando = true;
+    private string? erro;
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    private async Task Filtrar(string? status)
+    {
+        filtro = status;
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        carregando = true;
+        erro = null;
+        try
+        {
+            chamados = await Api.ListarChamadosAsync(filtro);
+        }
+        catch (ApiException ex)
+        {
+            erro = ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private void Abrir(int id) => Nav.NavigateTo($"chamados/{id}");
+}

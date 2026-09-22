@@ -1,0 +1,209 @@
+@page "/chamados/{Id:int}"
+@attribute [Authorize]
+@inject ClienteApi Api
+
+<PageTitle>Chamado #@Id - HelpDesk</PageTitle>
+
+@if (carregando)
+{
+    <p class="my-3">Carregando...</p>
+}
+else if (chamado is null)
+{
+    <div class="alert alert-danger my-3">@(erro ?? "Chamado nao encontrado.")</div>
+    <a href="chamados" class="btn btn-link">Voltar</a>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start my-3">
+        <div>
+            <h1 class="h4 mb-1">#@chamado.Id - @chamado.Titulo</h1>
+            <span class="badge @Estilos.BadgeStatus(chamado.Status)">@Estilos.TextoStatus(chamado.Status)</span>
+            <span class="badge @Estilos.BadgePrioridade(chamado.Prioridade)">@chamado.Prioridade</span>
+            <span class="badge bg-light text-dark">@chamado.Categoria</span>
+            @if (chamado.SlaEstourado)
+            {
+                <span class="badge bg-danger">SLA estourado</span>
+            }
+        </div>
+        <a href="chamados" class="btn btn-outline-secondary btn-sm">Voltar</a>
+    </div>
+
+    @if (erro is not null)
+    {
+        <div class="alert alert-danger py-2">@erro</div>
+    }
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h6 class="text-muted">Descricao</h6>
+                    <p style="white-space:pre-wrap">@chamado.Descricao</p>
+                </div>
+            </div>
+
+            <h6 class="text-muted">Historico</h6>
+            @if (chamado.Interacoes.Count == 0)
+            {
+                <p class="text-muted small">Sem respostas ainda.</p>
+            }
+            else
+            {
+                @foreach (var i in chamado.Interacoes)
+                {
+                    <div class="card mb-2 @(i.Interna ? "border-warning" : "")">
+                        <div class="card-body py-2">
+                            <div class="d-flex justify-content-between small text-muted">
+                                <strong>@i.Autor</strong>
+                                <span>
+                                    @if (i.Interna)
+                                    {
+                                        <span class="badge bg-warning text-dark me-1">nota interna</span>
+                                    }
+                                    @i.CriadaEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                </span>
+                            </div>
+                            <div style="white-space:pre-wrap">@i.Mensagem</div>
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (chamado.Status != "Fechado")
+            {
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h6 class="text-muted">Responder</h6>
+                        <textarea class="form-control mb-2" rows="3" @bind="respostaTexto"
+                                  placeholder="Escreva uma resposta..."></textarea>
+                        @if (ehAtendente)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="interna" @bind="respostaInterna" />
+                                <label class="form-check-label small" for="interna">
+                                    Nota interna (o cliente nao ve)
+                                </label>
+                            </div>
+                        }
+                        <button class="btn btn-primary btn-sm" @onclick="Responder" disabled="@ocupado">
+                            Enviar resposta
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-body small">
+                    <div class="mb-2"><span class="text-muted">Solicitante:</span> @chamado.Solicitante</div>
+                    <div class="mb-2"><span class="text-muted">Atendente:</span> @(chamado.Atendente ?? "ninguem ainda")</div>
+                    <div class="mb-2"><span class="text-muted">Aberto em:</span> @chamado.CriadoEm.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div>
+                    <div class="mb-2"><span class="text-muted">Prazo 1a resposta:</span> @chamado.PrazoPrimeiraResposta.ToLocalTime().ToString("dd/MM HH:mm")</div>
+                    <div class="mb-2"><span class="text-muted">Prazo resolucao:</span> @chamado.PrazoResolucao.ToLocalTime().ToString("dd/MM HH:mm")</div>
+                    @if (chamado.ResolvidoEm is not null)
+                    {
+                        <div class="mb-2"><span class="text-muted">Resolvido em:</span> @chamado.ResolvidoEm.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div>
+                    }
+                </div>
+            </div>
+
+            <div class="d-grid gap-2">
+                @if (ehAtendente && (chamado.Status is "Aberto" or "Reaberto"))
+                {
+                    <button class="btn btn-outline-primary btn-sm" @onclick="Assumir" disabled="@ocupado">Assumir chamado</button>
+                }
+                @if (ehAtendente && (chamado.Status is "EmAtendimento" or "AguardandoCliente" or "Reaberto"))
+                {
+                    <button class="btn btn-outline-success btn-sm" @onclick="Resolver" disabled="@ocupado">Marcar como resolvido</button>
+                }
+                @if (chamado.Status is "Resolvido")
+                {
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="Fechar" disabled="@ocupado">Fechar chamado</button>
+                }
+                @if (chamado.Status is "Resolvido" or "Fechado")
+                {
+                    <button class="btn btn-outline-warning btn-sm" @onclick="Reabrir" disabled="@ocupado">Reabrir chamado</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> EstadoAutenticacao { get; set; } = default!;
+
+    private ChamadoDetalhe? chamado;
+    private bool carregando = true;
+    private bool ocupado;
+    private string? erro;
+    private bool ehAtendente;
+
+    private string respostaTexto = string.Empty;
+    private bool respostaInterna;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var estado = await EstadoAutenticacao;
+        ehAtendente = estado.User.IsInRole("Atendente") || estado.User.IsInRole("Admin");
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        carregando = true;
+        erro = null;
+        try
+        {
+            chamado = await Api.ObterChamadoAsync(Id);
+        }
+        catch (ApiException ex)
+        {
+            chamado = null;
+            erro = ex.Message;
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private async Task Executar(Func<Task<ChamadoDetalhe>> acao)
+    {
+        ocupado = true;
+        erro = null;
+        try
+        {
+            chamado = await acao();
+        }
+        catch (ApiException ex)
+        {
+            erro = ex.Message;
+        }
+        finally
+        {
+            ocupado = false;
+        }
+    }
+
+    private Task Assumir() => Executar(() => Api.AssumirAsync(Id));
+    private Task Resolver() => Executar(() => Api.ResolverAsync(Id));
+    private Task Fechar() => Executar(() => Api.FecharAsync(Id));
+    private Task Reabrir() => Executar(() => Api.ReabrirAsync(Id));
+
+    private async Task Responder()
+    {
+        if (string.IsNullOrWhiteSpace(respostaTexto))
+            return;
+
+        await Executar(() => Api.ResponderAsync(Id, new ResponderRequest(respostaTexto, respostaInterna)));
+
+        if (erro is null)
+        {
+            respostaTexto = string.Empty;
+            respostaInterna = false;
+        }
+    }
+}

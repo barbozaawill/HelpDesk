@@ -1,0 +1,41 @@
+@inherits LayoutComponentBase
+@inject ServicoDeSessao Sessao
+@inject NavigationManager Nav
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4 d-flex justify-content-end align-items-center gap-2">
+            <AuthorizeView>
+                <Authorized>
+                    <span class="small text-muted">
+                        @context.User.Identity?.Name
+                        <span class="badge bg-secondary">@Papel(context)</span>
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="Sair">Sair</button>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="login" class="btn btn-sm btn-primary">Entrar</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private async Task Sair()
+    {
+        await Sessao.SairAsync();
+        Nav.NavigateTo("login");
+    }
+
+    private static string Papel(AuthenticationState estado) =>
+        estado.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+}

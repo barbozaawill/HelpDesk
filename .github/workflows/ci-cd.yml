@@ -1,0 +1,75 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # 1) Build + testes. Roda em todo push e todo pull request.
+  build-e-testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Testes
+        run: >
+          dotnet test --no-build -c Release
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ./TestResults
+
+      - name: Publicar resultado dos testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./TestResults
+
+  # 2) Build + push das imagens Docker. So no push pra main (nao em PR).
+  imagens-docker:
+    needs: build-e-testes
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        servico:
+          - nome: api
+            dockerfile: src/HelpDesk.Api/Dockerfile
+          - nome: worker
+            dockerfile: src/HelpDesk.Worker/Dockerfile
+          - nome: web
+            dockerfile: src/HelpDesk.Web/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login no GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.servico.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/helpdesk-${{ matrix.servico.nome }}:latest
+            ghcr.io/${{ github.repository_owner }}/helpdesk-${{ matrix.servico.nome }}:${{ github.sha }}

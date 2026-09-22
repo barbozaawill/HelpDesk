@@ -1,0 +1,114 @@
+@page "/chamados/novo"
+@attribute [Authorize]
+@using System.ComponentModel.DataAnnotations
+@inject ClienteApi Api
+@inject NavigationManager Nav
+
+<PageTitle>Novo chamado - HelpDesk</PageTitle>
+
+<h1 class="h3 my-3">Abrir chamado</h1>
+
+<div class="row">
+    <div class="col-md-7">
+        <EditForm Model="modelo" OnValidSubmit="Salvar">
+            <DataAnnotationsValidator />
+
+            <div class="mb-3">
+                <label class="form-label">Titulo</label>
+                <InputText class="form-control" @bind-Value="modelo.Titulo" />
+                <ValidationMessage For="() => modelo.Titulo" class="text-danger small" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Descricao</label>
+                <InputTextArea class="form-control" rows="5" @bind-Value="modelo.Descricao" />
+                <ValidationMessage For="() => modelo.Descricao" class="text-danger small" />
+            </div>
+
+            <div class="row">
+                <div class="col mb-3">
+                    <label class="form-label">Categoria</label>
+                    <InputSelect class="form-select" @bind-Value="modelo.CategoriaId">
+                        <option value="0" disabled>Selecione...</option>
+                        @foreach (var c in categorias)
+                        {
+                            <option value="@c.Id">@c.Nome</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => modelo.CategoriaId" class="text-danger small" />
+                </div>
+
+                <div class="col mb-3">
+                    <label class="form-label">Prioridade</label>
+                    <InputSelect class="form-select" @bind-Value="modelo.Prioridade">
+                        @foreach (var p in Enum.GetValues<Prioridade>())
+                        {
+                            <option value="@p">@p</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+
+            @if (erro is not null)
+            {
+                <div class="alert alert-danger py-2">@erro</div>
+            }
+
+            <button type="submit" class="btn btn-primary" disabled="@ocupado">
+                @(ocupado ? "Salvando..." : "Abrir chamado")
+            </button>
+            <a href="chamados" class="btn btn-link">Cancelar</a>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private readonly Formulario modelo = new();
+    private List<CategoriaItem> categorias = new();
+    private string? erro;
+    private bool ocupado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            categorias = await Api.ListarCategoriasAsync();
+        }
+        catch (ApiException ex)
+        {
+            erro = ex.Message;
+        }
+    }
+
+    private async Task Salvar()
+    {
+        ocupado = true;
+        erro = null;
+        try
+        {
+            var criado = await Api.AbrirChamadoAsync(
+                new AbrirChamadoRequest(modelo.Titulo, modelo.Descricao, modelo.CategoriaId, modelo.Prioridade));
+            Nav.NavigateTo($"chamados/{criado.Id}");
+        }
+        catch (ApiException ex)
+        {
+            erro = ex.Message;
+            ocupado = false;
+        }
+    }
+
+    private class Formulario
+    {
+        [Required(ErrorMessage = "Informe um titulo")]
+        [MaxLength(160)]
+        public string Titulo { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Descreva o problema")]
+        public string Descricao { get; set; } = string.Empty;
+
+        [Range(1, int.MaxValue, ErrorMessage = "Escolha uma categoria")]
+        public int CategoriaId { get; set; }
+
+        public Prioridade Prioridade { get; set; } = Prioridade.Media;
+    }
+}

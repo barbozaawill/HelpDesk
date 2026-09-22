@@ -1,0 +1,11 @@
+@inject NavigationManager Nav
+
+@code {
+    // Manda pro login guardando de onde a pessoa veio, pra voltar depois do login.
+    protected override void OnInitialized()
+    {
+        var destino = Nav.ToBaseRelativePath(Nav.Uri);
+        var query = string.IsNullOrEmpty(destino) ? "" : $"?retorno={Uri.EscapeDataString(destino)}";
+        Nav.NavigateTo($"login{query}", replace: true);
+    }
+}

@@ -1,0 +1,13 @@
+# Evita mandar lixo pro contexto de build do Docker (deixa o build mais rapido)
+**/bin
+**/obj
+**/out
+**/.vs
+**/.vscode
+**/.idea
+**/*.user
+.git
+.github
+TestResults
+*.md
+docker-compose*.yml
